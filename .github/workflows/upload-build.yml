@@ -1,18 +1,21 @@
-# Automatically uploads the latest DesQTA Windows build to OwnCloud
 name: Upload Windows Build
-
 on:
   workflow_dispatch:
-
 permissions:
   actions: read
   contents: read
-
 jobs:
-  upload:
+  check:
+    name: Check for New Build
     runs-on: ubuntu-latest
+    outputs:
+      new_build: ${{ steps.check.outputs.new_build }}
+      run_id: ${{ steps.check.outputs.run_id }}
+      commit_sha: ${{ steps.check.outputs.commit_sha }}
+      commit_msg: ${{ steps.check.outputs.commit_msg }}
+      commit_author: ${{ steps.check.outputs.commit_author }}
     steps:
-      - name: Check for new build
+      - name: Compare Latest Run Against Last Uploaded
         id: check
         run: |
           RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
@@ -28,28 +31,30 @@ jobs:
             | jq -r '.value // "0"')
           
           if [ "$LATEST_RUN" = "$LAST_UPLOADED" ]; then
-            echo "No new build, skipping!"
             echo "new_build=false" >> $GITHUB_OUTPUT
           else
-            echo "New build found! Run ID: $LATEST_RUN"
-            echo "Commit: $COMMIT_SHA"
-            echo "Message: $COMMIT_MSG"
-            echo "Author: $COMMIT_AUTHOR"
             echo "new_build=true" >> $GITHUB_OUTPUT
             echo "run_id=$LATEST_RUN" >> $GITHUB_OUTPUT
+            echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+            echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "commit_author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download artifact
-        if: steps.check.outputs.new_build == 'true'
+  upload:
+    name: Download and Upload to OwnCloud
+    runs-on: ubuntu-latest
+    needs: check
+    if: needs.check.outputs.new_build == 'true'
+    steps:
+      - name: Download Windows Build Artifact
         uses: actions/download-artifact@v4
         with:
           name: desktop-builds-windows-latest
-          run-id: ${{ steps.check.outputs.run_id }}
+          run-id: ${{ needs.check.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: BetterSEQTA/DesQTA
 
-      - name: Upload to OwnCloud
-        if: steps.check.outputs.new_build == 'true'
+      - name: Upload Installer to OwnCloud
         run: |
           EXE=$(find nsis -name "*.exe" | head -n 1)
           if [ -z "$EXE" ]; then
@@ -59,11 +64,10 @@ jobs:
             -T "$EXE" \
             "https://files.jonesjankovic.com/remote.php/dav/files/JonesJ/DesQTA-latest-setup.exe"
 
-      - name: Save last uploaded run ID
-        if: steps.check.outputs.new_build == 'true'
+      - name: Save Uploaded Run ID
         run: |
           curl -X PATCH \
             -H "Authorization: token ${{ secrets.GH_PAT }}" \
             -H "Content-Type: application/json" \
-            -d '{"value": "${{ steps.check.outputs.run_id }}"}' \
+            -d '{"value": "${{ needs.check.outputs.run_id }}"}' \
             "https://api.github.com/repos/${{ github.repository }}/actions/variables/LAST_UPLOADED_RUN_ID"
