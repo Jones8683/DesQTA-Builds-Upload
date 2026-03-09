@@ -2,8 +2,6 @@
 name: Upload Windows Build
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
