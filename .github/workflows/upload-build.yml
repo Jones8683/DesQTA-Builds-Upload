@@ -19,23 +19,39 @@ jobs:
         id: check
         run: |
           RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/BetterSEQTA/DesQTA/actions/workflows/build.yml/runs?branch=develop&status=success&per_page=1")
-          
-          LATEST_RUN=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].id')
+            "https://api.github.com/repos/BetterSEQTA/DesQTA/actions/workflows/build.yml/runs?branch=develop&per_page=10")
+
+          LATEST_RUN=$(echo "$RESPONSE" | jq -r '
+            .workflow_runs[] |
+            select(.status == "in_progress" or .status == "completed") |
+            .id' | head -n 1)
+
           COMMIT_SHA=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_sha')
           COMMIT_MSG=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_commit.message' | head -n 1)
           COMMIT_AUTHOR=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_commit.author.name')
-          
+
+          # Check if the windows artifact exists for that run
+          ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/BetterSEQTA/DesQTA/actions/runs/$LATEST_RUN/artifacts")
+
+          WINDOWS_ARTIFACT=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name == "desktop-builds-windows-latest") | .id')
+
           LAST_UPLOADED=$(curl -s -H "Authorization: token ${{ secrets.GH_PAT }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/variables/LAST_UPLOADED_RUN_ID" \
             | jq -r '.value // "0"')
 
           echo "Latest run ID: $LATEST_RUN"
           echo "Last uploaded ID: $LAST_UPLOADED"
-          
-          if [ "$LATEST_RUN" = "$LAST_UPLOADED" ]; then
+          echo "Windows artifact ID: $WINDOWS_ARTIFACT"
+
+          if [ -z "$WINDOWS_ARTIFACT" ]; then
+            echo "Windows artifact not available yet, skipping!"
+            echo "new_build=false" >> $GITHUB_OUTPUT
+          elif [ "$LATEST_RUN" = "$LAST_UPLOADED" ]; then
+            echo "No new build, skipping!"
             echo "new_build=false" >> $GITHUB_OUTPUT
           else
+            echo "New build found with Windows artifact ready!"
             echo "new_build=true" >> $GITHUB_OUTPUT
             echo "run_id=$LATEST_RUN" >> $GITHUB_OUTPUT
             echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
