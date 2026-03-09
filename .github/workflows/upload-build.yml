@@ -1,0 +1,70 @@
+name: Upload Windows Build
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for new build
+        id: check
+        run: |
+          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/BetterSEQTA/DesQTA/actions/workflows/build.yml/runs?branch=develop&status=success&per_page=1")
+          
+          LATEST_RUN=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].id')
+          COMMIT_SHA=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_sha')
+          COMMIT_MSG=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_commit.message' | head -n 1)
+          COMMIT_AUTHOR=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_commit.author.name')
+          
+          LAST_UPLOADED=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/variables/LAST_UPLOADED_RUN_ID" \
+            | jq -r '.value // "0"')
+          
+          if [ "$LATEST_RUN" = "$LAST_UPLOADED" ]; then
+            echo "No new build, skipping!"
+            echo "new_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "New build found! Run ID: $LATEST_RUN"
+            echo "Commit: $COMMIT_SHA"
+            echo "Message: $COMMIT_MSG"
+            echo "Author: $COMMIT_AUTHOR"
+            echo "new_build=true" >> $GITHUB_OUTPUT
+            echo "run_id=$LATEST_RUN" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download artifact
+        if: steps.check.outputs.new_build == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-builds-windows-latest
+          run-id: ${{ steps.check.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: BetterSEQTA/DesQTA
+
+      - name: Upload to OwnCloud
+        if: steps.check.outputs.new_build == 'true'
+        run: |
+          EXE=$(find nsis -name "*.exe" | head -n 1)
+          if [ -z "$EXE" ]; then
+            echo "No .exe found!" && exit 1
+          fi
+          curl -u "${{ secrets.OWNCLOUD_USERNAME }}:${{ secrets.OWNCLOUD_PASSWORD }}" \
+            -T "$EXE" \
+            "https://files.jonesjankovic.com/remote.php/dav/files/JonesJ/DesQTA-latest-setup.exe"
+
+      - name: Save last uploaded run ID
+        if: steps.check.outputs.new_build == 'true'
+        run: |
+          curl -X PATCH \
+            -H "Authorization: token ${{ secrets.GH_PAT }}" \
+            -H "Content-Type: application/json" \
+            -d '{"value": "${{ steps.check.outputs.run_id }}"}' \
+            "https://api.github.com/repos/${{ github.repository }}/actions/variables/LAST_UPLOADED_RUN_ID"
