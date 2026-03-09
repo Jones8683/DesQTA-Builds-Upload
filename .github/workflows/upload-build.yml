@@ -46,6 +46,12 @@ jobs:
     needs: check
     if: needs.check.outputs.new_build == 'true'
     steps:
+      - name: Print Build Info
+        run: |
+          echo "Commit: ${{ needs.check.outputs.commit_sha }}"
+          echo "Message: ${{ needs.check.outputs.commit_msg }}"
+          echo "Author: ${{ needs.check.outputs.commit_author }}"
+
       - name: Download Windows Build Artifact
         uses: actions/download-artifact@v4
         with:
