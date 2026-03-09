@@ -1,3 +1,4 @@
+# Automatically uploads the latest DesQTA Windows build to OwnCloud
 name: Upload Windows Build
 
 on:
