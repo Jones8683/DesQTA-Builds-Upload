@@ -1,6 +1,8 @@
 name: Upload Windows Build
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
 permissions:
   actions: read
   contents: read
@@ -30,7 +32,6 @@ jobs:
           COMMIT_MSG=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_commit.message' | head -n 1)
           COMMIT_AUTHOR=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_commit.author.name')
 
-          # Check if the windows artifact exists for that run
           ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/BetterSEQTA/DesQTA/actions/runs/$LATEST_RUN/artifacts")
 
