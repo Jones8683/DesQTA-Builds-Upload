@@ -80,7 +80,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: BetterSEQTA/DesQTA
 
-      - name: Upload Installer to OwnCloud
+      - name: Upload Installer to oCIS
         run: |
           EXE=$(find nsis -name "*.exe" | head -n 1)
           if [ -z "$EXE" ]; then
@@ -88,7 +88,7 @@ jobs:
           fi
           curl -u "${{ secrets.OWNCLOUD_USERNAME }}:${{ secrets.OWNCLOUD_PASSWORD }}" \
             -T "$EXE" \
-            "https://files.jonesjankovic.com/remote.php/dav/files/JonesJ/DesQTA-latest-setup.exe"
+            "https://files.jonesjankovic.com/dav/spaces/e49b381c-ff4a-43be-b940-1b9ddfc4e9b4\$6907cf82-532f-4077-91bd-85cc69dea4b3/DesQTA-latest-setup.exe"
 
       - name: Save Uploaded Run ID
         run: |
