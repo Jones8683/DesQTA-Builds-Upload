@@ -86,9 +86,10 @@ jobs:
           if [ -z "$EXE" ]; then
             echo "No .exe found!" && exit 1
           fi
+          zip DesQTA-latest-setup.zip "$EXE"
           curl -u "${{ secrets.OWNCLOUD_USERNAME }}:${{ secrets.OWNCLOUD_PASSWORD }}" \
-            -T "$EXE" \
-            "https://files.jonesjankovic.com/dav/spaces/e49b381c-ff4a-43be-b940-1b9ddfc4e9b4\$6907cf82-532f-4077-91bd-85cc69dea4b3/DesQTA-latest-setup.exe"
+            -T "DesQTA-latest-setup.zip" \
+            "https://files.jonesjankovic.com/dav/spaces/e49b381c-ff4a-43be-b940-1b9ddfc4e9b4\$6907cf82-532f-4077-91bd-85cc69dea4b3/DesQTA-latest-setup.zip"
 
       - name: Save Uploaded Run ID
         run: |
